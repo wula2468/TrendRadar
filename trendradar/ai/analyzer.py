@@ -528,6 +528,7 @@ class AIAnalyzer:
         try:
             json_str = response
 
+            # 尝试提取 JSON 代码块
             if "```json" in response:
                 parts = response.split("```json", 1)
                 if len(parts) > 1:
@@ -546,6 +547,12 @@ class AIAnalyzer:
             if not json_str:
                 raise ValueError("提取的 JSON 内容为空")
 
+            # 尝试修复常见的 JSON 错误
+            # 1. 移除末尾的逗号
+            import re
+            json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
+            
+            # 2. 尝试解析 JSON
             data = json.loads(json_str)
 
             # 新版 V3.0 字段解析

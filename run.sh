@@ -5,6 +5,12 @@
 cd ~/Downloads/gitproject/TrendRadar
 source venv/bin/activate
 
+# 禁用 LiteLLM 远程调用和缓存
+export LITELLM_MODE="PRODUCTION"
+export LITELLM_NO_LOG=True
+export LITELLM_CACHE=False
+export LITELLM_MODEL_CACHE=False
+
 export FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/4ba9f6d7-d62a-45f4-9898-30012978a49d"
 export AI_ANALYSIS_ENABLED="true"
 export AI_API_KEY="21913120356400447544"
