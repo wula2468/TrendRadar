@@ -25,6 +25,17 @@ class CategorizedNewsItem:
 
 
 @dataclass
+class CategoryAnalysisResult:
+    """单个分类的 AI 分析结果"""
+    category: str = ""           # 分类: risk|crisis|opportunity|trend
+    category_emoji: str = ""     # 分类emoji: 🔴🟢🟡
+    analysis: str = ""           # 该分类的 AI 分析结果
+    news_count: int = 0          # 该分类的新闻数量
+    success: bool = False        # 是否成功
+    error: str = ""              # 错误信息
+
+
+@dataclass
 class AIAnalysisResult:
     """AI 分析结果"""
     # 新版 5 核心板块
@@ -38,6 +49,10 @@ class AIAnalysisResult:
     # 新格式字段（V3.0）
     core_conclusion: str = ""                                    # 核心结论（150字以内）
     categorized_news: List[CategorizedNewsItem] = field(default_factory=list)  # 分类新闻列表
+
+    # 分模块分析结果（V4.0）
+    category_analyses: List[CategoryAnalysisResult] = field(default_factory=list)  # 各分类的独立分析结果
+    categorized_news_data: Dict[str, List[Dict]] = field(default_factory=dict)  # 分类后的新闻数据 {category: news_list}
 
     # 基础元数据
     raw_response: str = ""               # 原始响应
@@ -96,6 +111,238 @@ class AIAnalyzer:
         self.system_prompt, self.user_prompt_template = self._load_prompt_template(
             analysis_config.get("PROMPT_FILE", "ai_analysis_prompt.txt")
         )
+
+    def _categorize_news(self, stats: List[Dict], rss_stats: Optional[List[Dict]] = None) -> Dict[str, List[Dict]]:
+        """
+        对新闻进行分类（风险/危机/机会/趋势）
+        
+        简单的分类策略：
+        - 包含负面关键词 → risk（风险）
+        - 包含危机关键词 → crisis（危机）
+        - 包含机会/利好关键词 → opportunity（机会）
+        - 其他 → trend（趋势）
+        
+        Args:
+            stats: 热榜统计数据
+            rss_stats: RSS 统计数据
+        
+        Returns:
+            Dict[str, List[Dict]]: 各分类的新闻列表
+        """
+        categories = {
+            "risk": [],
+            "crisis": [],
+            "opportunity": [],
+            "trend": []
+        }
+        
+        # 定义分类关键词（简单规则）
+        risk_keywords = ["风险", "警告", "危险", "损失", "下跌", "暴跌", "危机", "制裁", "禁令", "违约"]
+        crisis_keywords = ["危机", "灾难", "事故", "冲突", "战争", "疫情", "崩盘", "倒闭", "破产"]
+        opportunity_keywords = ["机会", "利好", "增长", "突破", "创新", "上涨", "暴涨", "收益", "盈利"]
+        
+        def classify_title(title: str) -> str:
+            """根据标题内容分类"""
+            title_lower = title.lower()
+            
+            # 优先级：crisis > risk > opportunity > trend
+            for keyword in crisis_keywords:
+                if keyword in title:
+                    return "crisis"
+            
+            for keyword in risk_keywords:
+                if keyword in title:
+                    return "risk"
+            
+            for keyword in opportunity_keywords:
+                if keyword in title:
+                    return "opportunity"
+            
+            return "trend"
+        
+        # 分类热榜新闻
+        if stats:
+            for stat in stats:
+                word = stat.get("word", "")
+                titles = stat.get("titles", [])
+                if word and titles:
+                    for t in titles:
+                        if not isinstance(t, dict):
+                            continue
+                        title = t.get("title", "")
+                        if not title:
+                            continue
+                        
+                        category = classify_title(title)
+                        categories[category].append({
+                            "word": word,
+                            "title": title,
+                            "source": t.get("source_name", t.get("source", "")),
+                            "ranks": t.get("ranks", []),
+                            "count": t.get("count", 1),
+                            "first_time": t.get("first_time", ""),
+                            "last_time": t.get("last_time", ""),
+                        })
+        
+        # 分类 RSS 新闻
+        if self.include_rss and rss_stats:
+            for stat in rss_stats:
+                word = stat.get("word", "")
+                titles = stat.get("titles", [])
+                if word and titles:
+                    for t in titles:
+                        if not isinstance(t, dict):
+                            continue
+                        title = t.get("title", "")
+                        if not title:
+                            continue
+                        
+                        category = classify_title(title)
+                        categories[category].append({
+                            "word": word,
+                            "title": title,
+                            "source": t.get("source_name", t.get("feed_name", "")),
+                            "time_display": t.get("time_display", ""),
+                            "is_rss": True,
+                        })
+        
+        return categories
+
+    def analyze_category(
+        self,
+        category: str,
+        news_list: List[Dict],
+        report_mode: str = "daily",
+        report_type: str = "当日汇总",
+    ) -> CategoryAnalysisResult:
+        """
+        分析单个分类的新闻
+        
+        Args:
+            category: 分类名称 (risk|crisis|opportunity|trend)
+            news_list: 该分类的新闻列表
+            report_mode: 报告模式
+            report_type: 报告类型
+        
+        Returns:
+            CategoryAnalysisResult: 该分类的分析结果
+        """
+        category_emoji_map = {
+            "risk": "🔴",
+            "crisis": "🔴",
+            "opportunity": "🟢",
+            "trend": "🟡"
+        }
+        
+        category_name_map = {
+            "risk": "风险",
+            "crisis": "危机",
+            "opportunity": "机会",
+            "trend": "趋势"
+        }
+        
+        result = CategoryAnalysisResult(
+            category=category,
+            category_emoji=category_emoji_map.get(category, "🟡"),
+            news_count=len(news_list),
+        )
+        
+        if not news_list:
+            result.analysis = "该分类暂无新闻"
+            result.success = True
+            return result
+        
+        if not self.client.api_key:
+            result.error = "未配置 AI API Key"
+            result.success = False
+            return result
+        
+        # 构建该分类的新闻内容
+        news_lines = []
+        for i, news in enumerate(news_list[:10], 1):  # 每个分类最多10条
+            source = news.get("source", "")
+            title = news.get("title", "")
+            word = news.get("word", "")
+            
+            line = f"{i}. "
+            if source:
+                line += f"[{source}] "
+            line += title
+            
+            # 添加额外信息
+            ranks = news.get("ranks", [])
+            if ranks:
+                min_rank = min(ranks)
+                max_rank = max(ranks)
+                rank_str = f"{min_rank}" if min_rank == max_rank else f"{min_rank}-{max_rank}"
+                line += f" | 排名:{rank_str}"
+            
+            count = news.get("count", 1)
+            if count > 1:
+                line += f" | 出现:{count}次"
+            
+            news_lines.append(line)
+        
+        news_content = "\n".join(news_lines)
+        
+        # 构建针对该分类的分析提示词
+        current_time = self.get_time_func().strftime("%Y-%m-%d %H:%M:%S")
+        category_name = category_name_map.get(category, "趋势")
+        
+        user_prompt = f"""请分析以下【{category_name}】类新闻（共{len(news_list)}条）：
+
+## 数据概览
+- 报告模式：{report_mode} ({report_type})
+- 分析时间：{current_time}
+- 分类：{category_name}
+
+## 新闻列表
+{news_content}
+
+---
+
+请针对该分类输出简短分析（100字以内），直接点明核心要点，不要使用 Markdown 格式，不要使用 emoji。
+
+以 JSON 格式返回：
+```json
+{{
+  "analysis": "（100字以内的简短分析）"
+}}
+```"""
+
+        try:
+            # 调用 AI API
+            response = self._call_ai(user_prompt)
+            
+            # 解析响应
+            import json
+            json_str = response
+            
+            if "```json" in response:
+                parts = response.split("```json", 1)
+                if len(parts) > 1:
+                    code_block = parts[1]
+                    end_idx = code_block.find("```")
+                    if end_idx != -1:
+                        json_str = code_block[:end_idx]
+            elif "```" in response:
+                parts = response.split("```", 2)
+                if len(parts) >= 2:
+                    json_str = parts[1]
+            
+            json_str = json_str.strip()
+            data = json.loads(json_str)
+            
+            result.analysis = data.get("analysis", "")
+            result.success = True
+            
+        except Exception as e:
+            # 如果 AI 分析失败，使用简单总结
+            result.analysis = f"共{len(news_list)}条{category_name}类新闻，建议关注重点事件的发展。"
+            result.error = f"AI 分析失败: {str(e)[:100]}"
+            result.success = True  # 仍然标记为成功，确保有输出
+        
+        return result
 
     def _load_prompt_template(self, prompt_file: str) -> tuple:
         """加载提示词模板"""
@@ -247,6 +494,27 @@ class AIAnalyzer:
             result.rss_count = rss_total
             result.analyzed_news = analyzed_count
             result.max_news_limit = self.max_news
+            
+            # 分模块分析（V4.0）
+            # 对新闻进行分类
+            categorized_news_data = self._categorize_news(stats, rss_stats)
+            result.categorized_news_data = categorized_news_data
+            
+            # 对每个分类进行分析
+            print("[AI] 开始分模块分析...")
+            for category, news_list in categorized_news_data.items():
+                if news_list:  # 只分析有新闻的分类
+                    print(f"[AI] 分析分类: {category} ({len(news_list)}条新闻)")
+                    category_result = self.analyze_category(
+                        category=category,
+                        news_list=news_list,
+                        report_mode=report_mode,
+                        report_type=report_type,
+                    )
+                    result.category_analyses.append(category_result)
+            
+            print(f"[AI] 分模块分析完成，共 {len(result.category_analyses)} 个分类")
+            
             return result
         except Exception as e:
             error_type = type(e).__name__

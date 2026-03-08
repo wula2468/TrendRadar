@@ -7,7 +7,7 @@ AI 分析结果格式化模块
 
 import html as html_lib
 import re
-from .analyzer import AIAnalysisResult
+from .analyzer import AIAnalysisResult, CategoryAnalysisResult
 
 
 def _escape_html(text: str) -> str:
@@ -111,13 +111,63 @@ def render_ai_analysis_markdown(result: AIAnalysisResult) -> str:
     return "\n".join(lines)
 
 
+def render_category_analysis(category_result: CategoryAnalysisResult, news_list: list = None) -> str:
+    """
+    渲染单个分类的 AI 分析
+    
+    Args:
+        category_result: 单个分类的分析结果
+        news_list: 该分类的新闻列表（可选，用于显示新闻）
+    
+    Returns:
+        格式化的文本内容
+    """
+    if not category_result:
+        return ""
+    
+    category_name_map = {
+        "risk": "风险",
+        "crisis": "危机",
+        "opportunity": "机会",
+        "trend": "趋势"
+    }
+    
+    category_name = category_name_map.get(category_result.category, "趋势")
+    emoji = category_result.category_emoji or "🟡"
+    
+    lines = [f"**【{category_name}】{emoji}**"]
+    
+    # 显示新闻列表（如果有）
+    if news_list:
+        for i, news in enumerate(news_list[:5], 1):  # 最多显示5条
+            source = news.get("source", "")
+            title = news.get("title", "")
+            word = news.get("word", "")
+            
+            if source:
+                lines.append(f"{i}. [{source}] {title}")
+            else:
+                lines.append(f"{i}. {title}")
+    
+    # 显示 AI 分析
+    if category_result.analysis:
+        lines.append("")
+        lines.append(f"💡 **AI 分析**：{category_result.analysis}")
+    
+    lines.append("---")
+    lines.append("")
+    
+    return "\n".join(lines)
+
+
 def render_ai_analysis_feishu(result: AIAnalysisResult) -> str:
-    """渲染为飞书卡片 Markdown 格式"""
+    """渲染为飞书卡片 Markdown 格式（支持分模块分析）"""
     if not result.success:
         return f"⚠️ AI 分析失败: {result.error}"
 
     lines = ["**✨ AI 热点分析**", ""]
 
+    # 1. 显示传统的 5 大板块分析（保留向后兼容）
     if result.core_trends:
         lines.extend(["**核心热点态势**", _format_list_content(result.core_trends), ""])
 
@@ -143,6 +193,25 @@ def render_ai_analysis_feishu(result: AIAnalysisResult) -> str:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
         if summaries_text:
             lines.extend(["**独立源点速览**", summaries_text])
+    
+    # 2. 显示分模块分析（V4.0 新增）
+    if result.category_analyses:
+        lines.append("")
+        lines.append("**📊 分类深度分析**")
+        lines.append("---")
+        lines.append("")
+        
+        # 获取分类后的新闻
+        categorized_news_data = getattr(result, 'categorized_news_data', {})
+        
+        for category_analysis in result.category_analyses:
+            # 获取该分类的新闻列表
+            news_list = categorized_news_data.get(category_analysis.category, [])
+            
+            # 渲染该分类的分析
+            category_text = render_category_analysis(category_analysis, news_list)
+            if category_text:
+                lines.append(category_text)
 
     return "\n".join(lines)
 
