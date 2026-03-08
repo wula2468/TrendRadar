@@ -466,6 +466,57 @@ def render_ai_analysis_html_rich(result: AIAnalysisResult) -> str:
                         <div class="ai-block-content">{summaries_html}</div>
                     </div>"""
 
+    # 分类深度分析（V4.0 新增）
+    if result.category_analyses:
+        categorized_news_data = getattr(result, 'categorized_news_data', {})
+        
+        for category_analysis in result.category_analyses:
+            # 获取该分类的新闻列表
+            news_list = categorized_news_data.get(category_analysis.category, [])
+            
+            # 分类标签和 Emoji
+            category_names = {
+                "risk": "风险",
+                "crisis": "危机",
+                "opportunity": "机会",
+                "trend": "趋势"
+            }
+            category_name = category_names.get(category_analysis.category, category_analysis.category)
+            category_emoji = {
+                "risk": "🔴",
+                "crisis": "🔴",
+                "opportunity": "🟢",
+                "trend": "🟡"
+            }.get(category_analysis.category, "🟡")
+            
+            # 构建分类分析 HTML
+            category_html = f"""
+                    <div class="ai-block">
+                        <div class="ai-block-title">{category_emoji} {category_name} ({category_analysis.news_count}条)</div>"""
+            
+            # 显示新闻列表（最多5条）
+            if news_list:
+                category_html += """<div class="ai-block-content"><ul>"""
+                for news in news_list[:5]:
+                    source = news.get("source", "")
+                    title = news.get("title", "")
+                    if source:
+                        category_html += f"<li>[{source}] {_escape_html(title)}</li>"
+                    else:
+                        category_html += f"<li>{_escape_html(title)}</li>"
+                category_html += """</ul></div>"""
+            
+            # 显示 AI 分析
+            if category_analysis.analysis:
+                analysis_html = _escape_html(category_analysis.analysis).replace("\n", "<br>")
+                category_html += f"""
+                        <div class="ai-block-content" style="margin-top: 8px; padding: 8px; background: #f8f9fa; border-left: 3px solid #4f46e5;">
+                            <strong>💡 AI 分析：</strong>{analysis_html}
+                        </div>"""
+            
+            category_html += """</div>"""
+            ai_html += category_html
+
     ai_html += """
                 </div>"""
     return ai_html
