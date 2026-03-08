@@ -184,9 +184,9 @@ def split_content_into_batches(
         if update_info:
             base_footer += f"\n> TrendRadar 发现新版本 **{update_info['remote_version']}**，当前 **{update_info['current_version']}**"
     elif format_type == "feishu":
-        base_footer = f"\n\n<font color='grey'>更新时间：{now.strftime('%Y-%m-%d %H:%M:%S')}</font>"
+        base_footer = f"\n\n更新时间：{now.strftime('%Y-%m-%d %H:%M:%S')}"
         if update_info:
-            base_footer += f"\n<font color='grey'>TrendRadar 发现新版本 {update_info['remote_version']}，当前 {update_info['current_version']}</font>"
+            base_footer += f"\nTrendRadar 发现新版本 {update_info['remote_version']}，当前 {update_info['current_version']}"
     elif format_type == "dingtalk":
         base_footer = f"\n\n> 更新时间：{now.strftime('%Y-%m-%d %H:%M:%S')}"
         if update_info:
@@ -315,11 +315,11 @@ def split_content_into_batches(
                     word_header = f"📌 {sequence_display} **{word}** : {count} 条\n\n"
             elif format_type == "feishu":
                 if count >= 10:
-                    word_header = f"🔥 <font color='grey'>{sequence_display}</font> **{word}** : <font color='red'>{count}</font> 条\n\n"
+                    word_header = f"🔥 {sequence_display} **{word}** : **{count}** 条\n\n"
                 elif count >= 5:
-                    word_header = f"📈 <font color='grey'>{sequence_display}</font> **{word}** : <font color='orange'>{count}</font> 条\n\n"
+                    word_header = f"📈 {sequence_display} **{word}** : **{count}** 条\n\n"
                 else:
-                    word_header = f"📌 <font color='grey'>{sequence_display}</font> **{word}** : {count} 条\n\n"
+                    word_header = f"📌 {sequence_display} **{word}** : {count} 条\n\n"
             elif format_type == "dingtalk":
                 if count >= 10:
                     word_header = (
@@ -798,7 +798,7 @@ def split_content_into_batches(
 
         for i, id_value in enumerate(report_data["failed_ids"], 1):
             if format_type == "feishu":
-                failed_line = f"  • <font color='red'>{id_value}</font>\n"
+                failed_line = f"  • **{id_value}**\n"
             elif format_type == "dingtalk":
                 failed_line = f"  • **{id_value}**\n"
             else:
@@ -934,11 +934,11 @@ def _process_rss_stats_section(
                 word_header = f"📌 {sequence_display} **{word}** : {count} 条\n\n"
         elif format_type == "feishu":
             if count >= 10:
-                word_header = f"🔥 <font color='grey'>{sequence_display}</font> **{word}** : <font color='red'>{count}</font> 条\n\n"
+                word_header = f"🔥 {sequence_display} **{word}** : **{count}** 条\n\n"
             elif count >= 5:
-                word_header = f"📈 <font color='grey'>{sequence_display}</font> **{word}** : <font color='orange'>{count}</font> 条\n\n"
+                word_header = f"📈 {sequence_display} **{word}** : **{count}** 条\n\n"
             else:
-                word_header = f"📌 <font color='grey'>{sequence_display}</font> **{word}** : {count} 条\n\n"
+                word_header = f"📌 {sequence_display} **{word}** : {count} 条\n\n"
         elif format_type == "dingtalk":
             if count >= 10:
                 word_header = f"🔥 {sequence_display} **{word}** : **{count}** 条\n\n"
@@ -1267,7 +1267,7 @@ def _format_rss_item_line(
         else:
             item_line = f"  {index}. {title}"
         if friendly_time:
-            item_line += f" <font color='grey'>- {friendly_time}</font>"
+            item_line += f" - {friendly_time}"
     elif format_type == "telegram":
         if url:
             item_line = f"  {index}. {title} ({url})"
@@ -1548,9 +1548,9 @@ def _format_standalone_platform_item(item: Dict, index: int, format_type: str, r
         if rank_display:
             item_line += f" {rank_display}"
         if time_display:
-            item_line += f" <font color='grey'>- {time_display}</font>"
+            item_line += f" - {time_display}"
         if count_display:
-            item_line += f" <font color='green'>{count_display}</font>"
+            item_line += f" {count_display}"
 
     elif format_type == "dingtalk":
         if url:
@@ -1644,7 +1644,7 @@ def _format_standalone_rss_item(
         else:
             item_line = f"  {index}. {title}"
         if meta_str:
-            item_line += f" <font color='grey'>- {meta_str}</font>"
+            item_line += f" - {meta_str}"
     elif format_type == "telegram":
         if url:
             item_line = f"  {index}. {title} ({url})"
