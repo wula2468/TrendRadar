@@ -5,7 +5,7 @@ TrendRadar AI 模块
 提供 AI 大模型对热点新闻的深度分析和翻译功能
 """
 
-from .analyzer import AIAnalyzer, AIAnalysisResult
+from .analyzer import AIAnalyzer, AIAnalysisResult, CategorizedNewsItem
 from .translator import AITranslator, TranslationResult, BatchTranslationResult
 from .formatter import (
     get_ai_analysis_renderer,
@@ -15,6 +15,7 @@ from .formatter import (
     render_ai_analysis_html,
     render_ai_analysis_html_rich,
     render_ai_analysis_plain,
+    render_ai_analysis_v3_feishu,
 )
 
 __all__ = [

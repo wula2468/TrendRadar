@@ -24,6 +24,9 @@ def render_feishu_content(
     get_time_func: Optional[Callable[[], datetime]] = None,
     rss_items: Optional[list] = None,
     show_new_section: bool = True,
+    ai_analysis_result: Optional[Dict] = None,
+    total_analyzed: int = 0,
+    total_news: int = 0,
 ) -> str:
     """渲染飞书通知内容（支持热榜+RSS合并）
 
@@ -529,7 +532,7 @@ def _render_rss_section_feishu(rss_items: list, separator: str = "---") -> str:
 
 
 def _render_rss_section_markdown(rss_items: list) -> str:
-    """渲染 RSS 内容区块（通用 Markdown 格式，用于合并推送）"""
+    """渲染 RSS 内容区块（通用 Markdown 格式,用于合并推送）"""
     if not rss_items:
         return ""
 
@@ -545,7 +548,6 @@ def _render_rss_section_markdown(rss_items: list) -> str:
 
     for feed_id, items in feeds_map.items():
         feed_name = items[0].get("feed_name", feed_id) if items else feed_id
-
         text_content += f"**{feed_name}** ({len(items)} 条)\n"
 
         for i, item in enumerate(items, 1):
@@ -566,3 +568,110 @@ def _render_rss_section_markdown(rss_items: list) -> str:
         text_content += "\n"
 
     return text_content.rstrip("\n")
+
+
+def render_ai_analysis_content(
+    ai_analysis_result: Dict,
+    rss_items: Optional[list] = None,
+    get_time_func: Optional[Callable[[], datetime]] = None,
+    total_analyzed: int = 0,
+    total_news: int = 0,
+) -> str:
+    """渲染 AI 分析内容为新格式
+    
+    Args:
+        ai_analysis_result: AI 分析结果，格式:
+            {
+                "core_conclusion": "核心结论",
+                "categorized_news": [
+                    {
+                        "category": "risk|crisis|opportunity|trend",
+                        "category_emoji": "🔴或🟢或🟡",
+                        "source": "来源",
+                        "title": "标题",
+                        "ai_insight": "AI解读"
+                    }
+                ]
+            }
+        rss_items: RSS 条目列表
+        get_time_func: 获取当前时间的函数
+        total_analyzed: 已分析的新闻数
+        total_news: 总新闻数
+    
+    Returns:
+        格式化的消息内容
+    """
+    now = get_time_func() if get_time_func else datetime.now()
+    
+    # 顶部日期和分析数量
+    text_content = f"📅 {now.strftime('%Y-%m-%d %H:%M')} | 共分析 {total_analyzed}/{total_news} 条\n"
+    text_content += "---\n\n"
+    
+    # 核心结论
+    core_conclusion = ai_analysis_result.get("core_conclusion", "")
+    if core_conclusion:
+        text_content += f"> **📊 核心结论**： {core_conclusion}\n"
+        text_content += "---\n\n"
+    
+    # 分类新闻列表
+    categorized_news = ai_analysis_result.get("categorized_news", [])
+    if categorized_news:
+        text_content += "🔥 **热点新闻与AI解读**\n"
+        text_content += "---\n\n"
+        
+        for news in categorized_news:
+            category = news.get("category", "trend")
+            category_emoji = news.get("category_emoji", "🟡")
+            source = news.get("source", "")
+            title = news.get("title", "")
+            ai_insight = news.get("ai_insight", "")
+            
+            # 分类标签
+            text_content += f"【{category}】{category_emoji} "
+            text_content += f"{source} {title}\n"
+            
+            # AI 解读
+            if ai_insight:
+                text_content += f" 💡 **AI解读**: {ai_insight}\n"
+            
+            text_content += "---\n\n"
+    
+    # RSS 订阅精选
+    if rss_items:
+        text_content += "📰 **RSS订阅精选**\n"
+        text_content += "---\n\n"
+        
+        # 按 feed_id 分组
+        feeds_map: Dict[str, list] = {}
+        for item in rss_items:
+            feed_id = item.get("feed_id", "unknown")
+            if feed_id not in feeds_map:
+                feeds_map[feed_id] = []
+            feeds_map[feed_id].append(item)
+        
+        for feed_id, items in feeds_map.items():
+            feed_name = items[0].get("feed_name", feed_id) if items else feed_id
+            
+            for i, item in enumerate(items, 1):
+                title = item.get("title", "")
+                url = item.get("url", "")
+                
+                if url:
+                    text_content += f"{i}. [{feed_name}] {title}\n"
+                else:
+                    text_content += f"{i}. {title}\n"
+                
+                # 摘要（如果有）
+                summary = item.get("summary", "")
+                if summary:
+                    # 截取前100字符作为摘要
+                    short_summary = summary[:100] + "..." if len(summary) > 100 else summary
+                    text_content += f" _({short_summary})_\n"
+            
+            text_content += "\n"
+    
+    # 底部提示
+    text_content += "✨ **更多AI分析**（如异动信号、投资建议等）因篇幅较长，已生成完整报告。\n"
+    text_content += "如需查看请点击: `[查看完整分析文档]`\n"
+    
+    return text_content

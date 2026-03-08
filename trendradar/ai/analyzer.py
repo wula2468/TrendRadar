@@ -15,6 +15,16 @@ from trendradar.ai.client import AIClient
 
 
 @dataclass
+class CategorizedNewsItem:
+    """分类新闻项"""
+    category: str = ""              # 分类: risk|crisis|opportunity|trend
+    category_emoji: str = ""        # 分类emoji: 🔴🟢🟡
+    source: str = ""                # 来源
+    title: str = ""                 # 标题
+    ai_insight: str = ""            # AI解读
+
+
+@dataclass
 class AIAnalysisResult:
     """AI 分析结果"""
     # 新版 5 核心板块
@@ -24,6 +34,10 @@ class AIAnalysisResult:
     rss_insights: str = ""               # RSS 深度洞察
     outlook_strategy: str = ""           # 研判与策略建议
     standalone_summaries: Dict[str, str] = field(default_factory=dict)  # 独立展示区概括 {源ID: 概括}
+
+    # 新格式字段（V3.0）
+    core_conclusion: str = ""                                    # 核心结论（150字以内）
+    categorized_news: List[CategorizedNewsItem] = field(default_factory=list)  # 分类新闻列表
 
     # 基础元数据
     raw_response: str = ""               # 原始响应
@@ -534,7 +548,7 @@ class AIAnalyzer:
 
             data = json.loads(json_str)
 
-            # 新版字段解析
+            # 新版 V3.0 字段解析
             result.core_trends = data.get("core_trends", "")
             result.sentiment_controversy = data.get("sentiment_controversy", "")
             result.signals = data.get("signals", "")
@@ -547,6 +561,23 @@ class AIAnalyzer:
                 result.standalone_summaries = {
                     str(k): str(v) for k, v in summaries.items()
                 }
+            
+            # 新格式字段解析（V3.0）
+            result.core_conclusion = data.get("core_conclusion", "")
+            
+            # 解析分类新闻列表
+            categorized_news_data = data.get("categorized_news", [])
+            if isinstance(categorized_news_data, list):
+                for item in categorized_news_data:
+                    if isinstance(item, dict):
+                        news_item = CategorizedNewsItem(
+                            category=item.get("category", ""),
+                            category_emoji=item.get("category_emoji", ""),
+                            source=item.get("source", ""),
+                            title=item.get("title", ""),
+                            ai_insight=item.get("ai_insight", ""),
+                        )
+                        result.categorized_news.append(news_item)
             
             result.success = True
 
